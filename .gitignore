@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Jupyter / notebooks artefacts
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data & outputs (keep source CSVs, ignore generated artefacts)
+data/outputs/
+exports/
+*.html
+*.png
+*.jpg
+*.svg
+*.parquet
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
