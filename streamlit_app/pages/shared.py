@@ -65,7 +65,11 @@ def _reason(insight: str, meta: dict) -> str:
     ts_insights = {"fatigue_analysis", "imu_movement_detection", "shot_pass_header_detection"}
     reasons = []
     if insight in gps_insights and not meta.get("has_gps"):
-        reasons.append("This file contains no GPS data (latitude/longitude are all zero or absent).")
+        reasons.append(
+            "This file contains no GPS data — latitude and longitude are all zero. "
+            "This is an **IMU-only** file (e.g. the `player-activity-...` export). "
+            "Upload the **GPS+IMU file** (`new_player_data_...`) as **File 1** to enable this insight."
+        )
     if insight in ts_insights and not meta.get("has_timestamp"):
         reasons.append("This file has no valid timestamp column.")
     return " ".join(reasons) if reasons else "Required data columns are missing."

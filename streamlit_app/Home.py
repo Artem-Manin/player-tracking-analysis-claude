@@ -73,12 +73,12 @@ with st.sidebar:
     st.markdown("## 📂 Load Files")
     st.markdown("Upload one or two tracking CSV files.")
 
-    uploaded_1 = st.file_uploader("File 1 (GPS + IMU)", type="csv", key="f1")
+    uploaded_1 = st.file_uploader("File 1 — GPS + IMU (`new_player_data_...`)", type="csv", key="f1")
     imu_start_1 = st.text_input("File 1 start time (if no timestamp)", placeholder="e.g. 04.02.2026 17:30")
 
     st.divider()
 
-    uploaded_2 = st.file_uploader("File 2 (IMU-only)", type="csv", key="f2")
+    uploaded_2 = st.file_uploader("File 2 — IMU-only (`player-activity-...`)", type="csv", key="f2")
     imu_start_2 = st.text_input(
         "File 2 start time (if no timestamp)",
         value="16.02.2026 19:30",
@@ -90,11 +90,13 @@ with st.sidebar:
     st.page_link("Home.py", label="🏠 Overview", icon="🏠")
     st.page_link("pages/1_Exploratory_Analysis.py", label="🔍 Exploratory Analysis")
     st.page_link("pages/2_GPS_Speed_Validation.py", label="📡 GPS Speed Validation")
-    st.page_link("pages/3_Position_Heatmap.py", label="🗺️ Position Heatmap")
-    st.page_link("pages/4_Speed_Distribution.py", label="⚡ Speed Distribution")
-    st.page_link("pages/5_IMU_Movements.py", label="🔄 Movement Detection")
-    st.page_link("pages/6_Action_Events.py", label="🦵 Action Events")
-    st.page_link("pages/7_Asymmetry_Fatigue.py", label="⚖️ Asymmetry & Fatigue")
+    st.page_link("pages/3_GK_Clustering.py", label="🥅 GK Role Detection")
+    st.page_link("pages/4_Position_Heatmap.py", label="🗺️ Position Heatmap")
+    st.page_link("pages/5_Distance_Analysis.py", label="📏 Distance Analysis")
+    st.page_link("pages/6_Speed_Distribution.py", label="⚡ Speed Distribution")
+    st.page_link("pages/7_IMU_Movements.py", label="🔄 Movement Detection")
+    st.page_link("pages/8_Action_Events.py", label="🦵 Action Events")
+    st.page_link("pages/9_Asymmetry_Fatigue.py", label="⚖️ Asymmetry & Fatigue")
 
 # ---------------------------------------------------------------------------
 # Load & cache
