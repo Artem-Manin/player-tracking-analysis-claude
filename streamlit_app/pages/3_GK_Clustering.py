@@ -429,10 +429,7 @@ with st.expander("📊 PCA feature loadings"):
         f"PC1 ({ev1:.1f}% var)",
         f"PC2 ({ev2:.1f}% var)",
     ]
-    st.dataframe(
-        loadings_display.style.background_gradient(cmap="RdBu", axis=None),
-        use_container_width=True,
-    )
+    st.dataframe(loadings_display, use_container_width=True)
 
 st.divider()
 
