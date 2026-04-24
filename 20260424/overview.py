@@ -279,6 +279,23 @@ st.markdown(create_table_with_hints(table_df), unsafe_allow_html=True)
 # ── radar comparison ──────────────────────────────────────────────────────────
 st.markdown('<p class="section">Radar — 6 dimensions (normalized)</p>', unsafe_allow_html=True)
 
+# Add radar dimensions legend
+st.markdown("""
+<style>
+  .radar-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 12px 0 16px; }
+  .radar-legend-item { font-size: 12px; color: #666; margin-bottom: 2px; }
+  .radar-legend-item strong { color: #333; }
+</style>
+<div class="radar-legend">
+  <div class="radar-legend-item"><strong>Dist/min</strong> <span class="info-tooltip" title="Average distance covered per minute of activity">ℹ</span><br><span style="color: #999; font-size: 11px;">Work intensity (meters/min)</span></div>
+  <div class="radar-legend-item"><strong>Sprint density</strong> <span class="info-tooltip" title="Sprints per minute, scaled ×100 for visibility">ℹ</span><br><span style="color: #999; font-size: 11px;">Sprint frequency</span></div>
+  <div class="radar-legend-item"><strong>Hi-intensity %</strong> <span class="info-tooltip" title="Percentage of time running or sprinting (speed ≥3 m/s)">ℹ</span><br><span style="color: #999; font-size: 11px;">% running + sprinting</span></div>
+  <div class="radar-legend-item"><strong>Max speed</strong> <span class="info-tooltip" title="Peak speed reached during the session">ℹ</span><br><span style="color: #999; font-size: 11px;">m/s</span></div>
+  <div class="radar-legend-item"><strong>Active time %</strong> <span class="info-tooltip" title="Percentage of session actively moving (speed > 0.5 m/s)">ℹ</span><br><span style="color: #999; font-size: 11px;">% moving</span></div>
+  <div class="radar-legend-item"><strong>Consistency</strong> <span class="info-tooltip" title="Pace stability: high = steady throughout, low = variable or faded">ℹ</span><br><span style="color: #999; font-size: 11px;">Pace stability (inverted)</span></div>
+</div>
+""", unsafe_allow_html=True)
+
 DIMS = ["Dist/min", "Sprint\ndensity", "Hi-intensity\n%", "Max\nspeed", "Active\ntime %", "Consistency\n(inv)"]
 
 def radar_vals(r):
@@ -317,65 +334,4 @@ fig_radar.update_layout(
 )
 st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
 
-# ── comparison bar — key normalized metrics ────────────────────────────────────
-st.markdown('''<p class="section">Key metrics — side by side
-  <span class="info-tooltip" title="Distance covered per minute of activity">ℹ</span>
-</p>''', unsafe_allow_html=True)
-
-metrics = [
-    ("Dist/min (m)",    "_dist_per_min", "Average distance covered per minute"),
-    ("Max speed (m/s)", "_max_spd",      "Peak speed reached during session"),
-    ("Hi-intensity %",  "_hi",           "Percentage of time spent running or sprinting (≥3 m/s)"),
-    ("Sprints/min",     "_spr_per_min",  "Number of sprints per minute of activity"),
-]
-
-cols = st.columns(len(metrics))
-for col, (label, key, hint) in zip(cols, metrics):
-    # Display metric label with tooltip
-    col.markdown(f'<div style="font-size: 12px; color: #666; margin-bottom: 8px;"><strong>{label}</strong> <span class="info-tooltip" title="{hint}">ℹ</span></div>', unsafe_allow_html=True)
-    
-    fig_bar = go.Figure()
-    for sid in sorted(raw_rows.keys()):
-        r = raw_rows[sid]
-        val = r[key]
-        fig_bar.add_trace(go.Bar(
-            name=f"S{sid}",
-            x=[f"S{sid}"],
-            y=[round(val, 3)],
-            marker_color=COLORS.get(sid, "#888"),
-            text=[f"{round(val, 2)}"],
-            textposition="outside",
-            showlegend=False,
-            hovertemplate=f"S{sid}: {round(val,3)}<extra></extra>",
-        ))
-    fig_bar.update_layout(
-        title=dict(text="", font=dict(size=12), x=0),
-        height=200,
-        margin=dict(l=4, r=4, t=8, b=4),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(showgrid=False, showticklabels=False, range=[0, max(raw_rows[s][key] for s in raw_rows) * 1.25]),
-        xaxis=dict(showgrid=False),
-        font=dict(size=11),
-        bargap=0.35,
-    )
-    col.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False})
-
-# ── insight ───────────────────────────────────────────────────────────────────
-if len(raw_rows) >= 2:
-    # Find sessions with highest and lowest work rate
-    sessions_sorted = sorted(raw_rows.items(), key=lambda x: x[1]["_dist_per_min"], reverse=True)
-    best_sid, best_row = sessions_sorted[0]
-    worst_sid, worst_row = sessions_sorted[-1]
-    
-    st.markdown(
-        f'<div class="insight">💡 '
-        f'S{best_sid} had highest work rate ({best_row["_dist_per_min"]:.1f} m/min) '
-        f'vs S{worst_sid} ({worst_row["_dist_per_min"]:.1f} m/min). '
-        f'S{best_sid} had {best_row["_sprints"]} sprints in {best_row["_dur"]:.0f} min '
-        f'({best_row["_spr_per_min"]:.3f}/min), '
-        f'vs S{worst_sid} with {worst_row["_sprints"]} sprints in {worst_row["_dur"]:.0f} min '
-        f'({worst_row["_spr_per_min"]:.3f}/min).'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+st.caption("💡 **Zoom tip:** Click and drag to zoom in. Double-click anywhere on the chart to reset zoom.", help="Plotly charts support interactive zooming. Double-click to reset to full view.")
