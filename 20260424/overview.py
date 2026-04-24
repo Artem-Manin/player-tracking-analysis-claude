@@ -129,6 +129,19 @@ def load_sessions():
     rows = []
     for sess in sorted(df["session"].unique()):
         g = df[df["session"] == sess].sort_values("time").reset_index(drop=True)
+        
+        # Store gross (unfiltered) time range
+        gross_start = g["time"].iloc[0]
+        gross_end = g["time"].iloc[-1]
+        gross_duration_min = (gross_end - gross_start).total_seconds() / 60
+        
+        # Speed-based trimming: find first and last point with speed ≥ 1.5 m/s
+        high_speed = g[g["speed"] >= 1.5]
+        if len(high_speed) > 0:
+            trim_start_idx = high_speed.index[0]
+            trim_end_idx = high_speed.index[-1]
+            g = g.loc[trim_start_idx:trim_end_idx].reset_index(drop=True)
+        
         g["elapsed_min"] = (g["time"] - g["time"].iloc[0]).dt.total_seconds() / 60
         spd = g["speed"]
         dur = g["elapsed_min"].max()
@@ -150,7 +163,16 @@ def load_sessions():
             "_sess":         int(sess),
             "_lat":          lat_c,
             "_lon":          lon_c,
+            "_gross_start":  gross_start,
+            "_gross_end":    gross_end,
+            "_gross_dur":    gross_duration_min,
+            "_net_start":    g["time"].iloc[0],
+            "_net_end":      g["time"].iloc[-1],
+            "_trimmed_min":  gross_duration_min - dur,
             "Session":       f"S{int(sess)}",
+            "Gross time":    f"{gross_start.strftime('%H:%M:%S')} – {gross_end.strftime('%H:%M:%S')} ({gross_duration_min:.0f} min)",
+            "Net time":      f"{g['time'].iloc[0].strftime('%H:%M:%S')} – {g['time'].iloc[-1].strftime('%H:%M:%S')} ({dur:.0f} min)",
+            "Trimmed":       f"{round(gross_duration_min - dur, 1)} min",
             "Date":          g["time"].iloc[0].strftime("%d.%m.%Y"),
             "Time":          f"{g['time'].iloc[0].strftime('%H:%M')}–{g['time'].iloc[-1].strftime('%H:%M')}",
             "Location":      location,
@@ -182,7 +204,8 @@ with st.spinner("Loading sessions..."):
     rows, player_name = load_sessions()
 
 display_cols = [
-    "Session", "Date", "Time", "Location",
+    "Session", "Date", "Gross time", "Net time",
+    "Location",
     "Duration", "Distance", "Dist/min", "Active time",
     "Avg speed", "Max speed", "Hi-intensity", "Sprints", "Sprints/min", "Fade index",
 ]
@@ -192,7 +215,7 @@ raw_rows  = {r["_sess"]: r for r in rows}
 # ── header ────────────────────────────────────────────────────────────────────
 header_text = f"{player_name} · Session overview" if player_name else "Session overview"
 st.markdown(f"## {header_text}")
-st.caption(f"{len(rows)} sessions loaded")
+st.caption(f"{len(rows)} sessions loaded · All metrics calculated using **net time** (after noise filtering)")
 
 # ── speed zone definitions ────────────────────────────────────────────────────
 st.markdown('<p class="section">Speed zones</p>', unsafe_allow_html=True)
@@ -213,10 +236,11 @@ st.markdown('<p class="section">All sessions</p>', unsafe_allow_html=True)
 def create_table_with_hints(df):
     hints = {
         "Session": "Session identifier",
+        "Gross time": "Full tracked time range (before noise filtering)",
+        "Net time": "Actual session time (after removing pre/post-activity noise)",
         "Date": "Session date",
-        "Time": "Session start–end time",
         "Location": "Geographic location (reverse geocoded)",
-        "Duration": "Total session duration in minutes",
+        "Duration": "Net session duration in minutes",
         "Distance": "Total distance covered in km",
         "Dist/min": "Average distance per minute",
         "Active time": "Time spent moving (speed > 0.5 m/s)",
