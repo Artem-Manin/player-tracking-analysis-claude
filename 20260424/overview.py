@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from pathlib import Path
 import requests
+#python -m streamlit run overview.py
 
 st.set_page_config(page_title="Session Overview", layout="wide")
 
@@ -64,12 +65,13 @@ BLUE, CORAL, GREEN = "#185FA5", "#D85A30", "#2D8659"
 COLORS = {1: BLUE, 2: CORAL, 3: GREEN}
 
 ZONE_DEFS = [
-    ("Standing",  0.0, 0.5),
-    ("Walking",   0.5, 2.0),
-    ("Jogging",   2.0, 3.0),
-    ("Running",   3.0, 5.0),
-    ("Sprinting", 5.0, 99.0),
+    ("Standing",  0.0, 0.5, "#B4B2A9"),
+    ("Walking",   0.5, 2.0, "#85B7EB"),
+    ("Jogging",   2.0, 3.0, "#1D9E75"),
+    ("Running",   3.0, 5.0, "#EF9F27"),
+    ("Sprinting", 5.0, 99.0, "#D85A30"),
 ]
+ZONE_NAMES = [name for name, _, _, _ in ZONE_DEFS]
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 def sprint_count(spd):
@@ -81,6 +83,48 @@ def sprint_count(spd):
 
 def zone_pct(spd, lo, hi):
     return round(((spd >= lo) & (spd < hi)).mean() * 100, 1)
+
+def _zones(spd):
+    return [{
+        "name": name, "color": color,
+        "minutes": round((((spd >= lo) & (spd < hi)).sum() * 0.5) / 60, 1),
+        "pct": round(((spd >= lo) & (spd < hi)).mean() * 100, 1),
+    } for name, lo, hi, color in ZONE_DEFS]
+
+
+def _layout(height=300):
+    return dict(
+        height=height, margin=dict(l=10, r=10, t=28, b=36),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="sans-serif", size=12),
+    )
+
+
+def _insight(text, kind="insight"):
+    st.markdown(f'<div class="{kind}">💡 {text}</div>', unsafe_allow_html=True)
+
+
+def _section(text):
+    st.markdown(f'<p class="section">{text}</p>', unsafe_allow_html=True)
+
+
+@st.cache_data
+def compute_zone_stats(SESS):
+    stats = {}
+    for sid in sorted(SESS.keys()):
+        g = SESS[sid]
+        spd = g["speed"]
+        hi_first = g[g["half"] == "First half"]["speed"].apply(lambda x: x >= 3.0).mean() * 100
+        hi_last  = g[g["half"] == "Second half"]["speed"].apply(lambda x: x >= 3.0).mean() * 100
+        hi_pct = round(((spd >= 3.0).mean()) * 100, 1)
+        stats[sid] = {
+            "zones": _zones(spd),
+            "hi_pct": hi_pct,
+            "hi_first": round(hi_first, 1),
+            "hi_last": round(hi_last, 1),
+        }
+    return stats
+
 
 def reverse_geocode(lat, lon):
     """Return a short street + district label from OSM Nominatim."""
@@ -127,6 +171,7 @@ def load_sessions():
     df["time"] = df["epoch_time"].apply(parse_time)
     
     rows = []
+    out = {}
     for sess in sorted(df["session"].unique()):
         g = df[df["session"] == sess].sort_values("time").reset_index(drop=True)
         
@@ -142,9 +187,19 @@ def load_sessions():
             trim_end_idx = high_speed.index[-1]
             g = g.loc[trim_start_idx:trim_end_idx].reset_index(drop=True)
         
+        # Store session data for zone analysis
+        out[int(sess)] = g
+        
         g["elapsed_min"] = (g["time"] - g["time"].iloc[0]).dt.total_seconds() / 60
         spd = g["speed"]
         dur = g["elapsed_min"].max()
+        
+        # Add half column for zone analysis
+        g["half"] = g["elapsed_min"].apply(lambda x: "First half" if x <= dur/2 else "Second half")
+        
+        # Store session data for zone analysis
+        out[int(sess)] = g
+        
         dist = (spd * 0.5).sum() / 1000
         active_min = (spd > 0.5).sum() * 0.5 / 60
         sc = sprint_count(spd)
@@ -198,10 +253,10 @@ def load_sessions():
             "_fade":         fade,
             "_active_pct":   active_min / dur * 100,
         })
-    return rows, player_name
+    return rows, player_name, out
 
 with st.spinner("Loading sessions..."):
-    rows, player_name = load_sessions()
+    rows, player_name, SESS = load_sessions()
 
 display_cols = [
     "Session", "Date", "Gross time", "Net time",
@@ -211,6 +266,7 @@ display_cols = [
 ]
 table_df = pd.DataFrame(rows)[display_cols]
 raw_rows  = {r["_sess"]: r for r in rows}
+STATS = compute_zone_stats(SESS)
 
 # ── header ────────────────────────────────────────────────────────────────────
 header_text = f"{player_name} · Session overview" if player_name else "Session overview"
@@ -221,11 +277,11 @@ st.caption(f"{len(rows)} sessions loaded · All metrics calculated using **net t
 st.markdown('<p class="section">Speed zones</p>', unsafe_allow_html=True)
 st.markdown("""
 <div class="legend">
-  <div class="legend-item"><div class="legend-swatch" style="background: #92a3a3;"></div> <strong>Standing</strong> 0.0–0.5 m/s</div>
-  <div class="legend-item"><div class="legend-swatch" style="background: #99b3cc;"></div> <strong>Walking</strong> 0.5–2.0 m/s</div>
-  <div class="legend-item"><div class="legend-swatch" style="background: #f4a460;"></div> <strong>Jogging</strong> 2.0–3.0 m/s</div>
-  <div class="legend-item"><div class="legend-swatch" style="background: #ff8c42;"></div> <strong>Running</strong> 3.0–5.0 m/s</div>
-  <div class="legend-item"><div class="legend-swatch" style="background: #e74c3c;"></div> <strong>Sprinting</strong> 5.0+ m/s</div>
+  <div class="legend-item"><div class="legend-swatch" style="background: #B4B2A9;"></div> <strong>Standing</strong> 0.0–0.5 m/s</div>
+  <div class="legend-item"><div class="legend-swatch" style="background: #85B7EB;"></div> <strong>Walking</strong> 0.5–2.0 m/s</div>
+  <div class="legend-item"><div class="legend-swatch" style="background: #1D9E75;"></div> <strong>Jogging</strong> 2.0–3.0 m/s</div>
+  <div class="legend-item"><div class="legend-swatch" style="background: #EF9F27;"></div> <strong>Running</strong> 3.0–5.0 m/s</div>
+  <div class="legend-item"><div class="legend-swatch" style="background: #D85A30;"></div> <strong>Sprinting</strong> 5.0+ m/s</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -335,3 +391,107 @@ fig_radar.update_layout(
 st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
 
 st.caption("💡 **Zoom tip:** Click and drag to zoom in. Double-click anywhere on the chart to reset zoom.", help="Plotly charts support interactive zooming. Double-click to reset to full view.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION — INTENSITY & SPEED ZONES
+# ══════════════════════════════════════════════════════════════════════════════
+
+st.markdown("## Intensity & Speed Zones")
+st.caption(f"Analyzing {len(SESS)} sessions · Speed zones and high-intensity time")
+
+# zone distribution — % of session time
+_section("Zone distribution — % of session time")
+fig = go.Figure()
+for sid in sorted(SESS.keys()):
+    zones = STATS[sid]["zones"]
+    label = f"S{sid}"
+    for z in zones:
+        fig.add_trace(go.Bar(
+            name=z["name"], y=[label], x=[z["pct"]],
+            orientation="h", marker_color=z["color"],
+            text=f"{z['pct']}%", textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(size=11, color="white"),
+            hovertemplate=f"<b>{z['name']}</b><br>{z['pct']}% · {z['minutes']} min<extra></extra>",
+            showlegend=bool(sid == min(SESS.keys())),
+        ))
+fig.update_layout(**_layout(160), barmode="stack",
+    xaxis=dict(range=[0,100], showticklabels=False, showgrid=False),
+    yaxis=dict(showgrid=False),
+    legend=dict(orientation="h", y=1.2, x=0, traceorder="normal"),
+)
+st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+# zone time — absolute minutes
+_section("Zone time — absolute minutes")
+fig2 = go.Figure()
+for sid in sorted(SESS.keys()):
+    zones = STATS[sid]["zones"]
+    fig2.add_trace(go.Bar(
+        name=f"S{sid}",
+        x=[z["name"] for z in zones],
+        y=[z["minutes"] for z in zones],
+        marker_color=COLORS.get(sid, "#888"),
+        text=[f"{z['minutes']}m" for z in zones],
+        textposition="outside",
+        hovertemplate="%{x}: %{y} min<extra>S{sid}</extra>",
+    ))
+fig2.update_layout(**_layout(280), barmode="group",
+    yaxis=dict(title="Minutes", showgrid=True, gridcolor="#f0f0f0"),
+    xaxis=dict(showgrid=False, categoryorder="array", categoryarray=ZONE_NAMES),
+    legend=dict(orientation="h", y=1.1, x=0),
+)
+st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+
+# zone breakdown — donut view
+_section("Zone breakdown — donut view")
+ncols = int(len(SESS)) if len(SESS) else 1
+cols = st.columns(ncols)
+for col, sid in zip(cols, sorted(SESS.keys())):
+    zones = STATS[sid]["zones"]
+    fig3 = go.Figure(go.Pie(
+        labels=[z["name"] for z in zones],
+        values=[z["pct"] for z in zones],
+        hole=0.55,
+        marker_colors=[z["color"] for z in zones],
+        textinfo="label+percent",
+        hovertemplate="%{label}: %{value}%<extra></extra>",
+        sort=False,
+    ))
+    fig3.update_layout(**_layout(260),
+        annotations=[dict(text=f"S{sid}", x=0.5, y=0.5, font_size=11, showarrow=False)],
+        showlegend=False,
+    )
+    col.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
+
+# hi-intensity % by half
+_section("High-intensity % — first half vs second half")
+fig4 = go.Figure()
+for sid in sorted(SESS.keys()):
+    s = STATS[sid]
+    fig4.add_trace(go.Bar(
+        name=f"S{sid}",
+        x=["First half", "Second half"],
+        y=[s["hi_first"], s["hi_last"]],
+        marker_color=COLORS.get(sid, "#888"),
+        marker_opacity=[1.0, 0.6],
+        text=[f"{s['hi_first']}%", f"{s['hi_last']}%"],
+        textposition="outside",
+        hovertemplate="%{x}: %{y:.1f}%<extra>S{sid}</extra>",
+    ))
+fig4.update_layout(**_layout(260), barmode="group",
+    yaxis=dict(title="% time at >3 m/s", showgrid=True, gridcolor="#f0f0f0"),
+    xaxis=dict(showgrid=False),
+    legend=dict(orientation="h", y=1.1, x=0),
+)
+st.plotly_chart(fig4, use_container_width=True, config={"displayModeBar": False})
+
+# summary insight
+st.divider()
+_section("Summary")
+insights = []
+for sid in sorted(SESS.keys()):
+    s = STATS[sid]
+    insights.append(f"**S{sid}**: {s['hi_pct']}% high-intensity time (running + sprinting)")
+
+_insight(" · ".join(insights))
