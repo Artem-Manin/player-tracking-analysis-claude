@@ -459,6 +459,45 @@ elif page == "Sprints":
              f"S2 had {s2['sprints']} sprints ({early2} in first half, {s2['sprints']-early2} in second). "
              f"S1 had {s1['sprints']-s2['sprints']} more sprints overall, but S1 was also 20 min longer.")
 
+    # sprint plausibility check
+    _section("Sprint Plausibility Check")
+    session_choice = st.radio("Choose session", [1, 2], format_func=lambda x: LABELS[x], horizontal=True)
+    sid = session_choice
+    bouts = STATS[sid]["bouts"]
+    g = SESS[sid]
+    if bouts:
+        options = [f"Sprint {i+1}: min {b['start_min']:.1f}, {b['duration_s']}s" for i, b in enumerate(bouts)]
+        selected = st.selectbox("Select a sprint to inspect", options, index=None)
+        if selected:
+            idx = options.index(selected)
+            bout = bouts[idx]
+            start_min = bout['start_min']
+            end_min = start_min + bout['duration_s'] / 60
+            bout_data = g[(g['elapsed_min'] >= start_min) & (g['elapsed_min'] <= end_min)]
+            st.write(f"**Sprint {idx+1} Details:**")
+            st.write(f"- Start time: {start_min:.1f} minutes into session")
+            st.write(f"- Duration: {bout['duration_s']} seconds")
+            st.write(f"- Max speed: {bout_data['speed'].max():.2f} m/s")
+            st.write(f"- Avg speed: {bout_data['speed'].mean():.2f} m/s")
+            # Plot
+            fig_bout = go.Figure()
+            fig_bout.add_trace(go.Scatter(x=bout_data['elapsed_min'], y=bout_data['speed'], mode='lines+markers', name='Speed'))
+            fig_bout.update_layout(
+                title=f"Speed Trace for Sprint {idx+1}",
+                xaxis_title="Elapsed Minutes",
+                yaxis_title="Speed (m/s)",
+                **_layout(300)
+            )
+            st.plotly_chart(fig_bout, use_container_width=True, config={"displayModeBar": False})
+            # Raw data table
+            st.write("**Raw Data Points:**")
+            display_data = bout_data[['elapsed_min', 'speed']].copy()
+            display_data['elapsed_min'] = display_data['elapsed_min'].round(2)
+            display_data['speed'] = display_data['speed'].round(2)
+            st.dataframe(display_data, use_container_width=True)
+    else:
+        st.write("No sprints detected in this session.")
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 4 — FATIGUE & PACING
