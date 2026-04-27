@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from pathlib import Path
 import requests
 #python -m streamlit run overview.py
@@ -90,6 +91,52 @@ def _zones(spd):
         "minutes": round((((spd >= lo) & (spd < hi)).sum() * 0.5) / 60, 1),
         "pct": round(((spd >= lo) & (spd < hi)).mean() * 100, 1),
     } for name, lo, hi, color in ZONE_DEFS]
+
+
+def _zone_name(speed):
+    for name, lo, hi, color in ZONE_DEFS:
+        if lo <= speed < hi:
+            return name
+    return ZONE_DEFS[-1][0]
+
+
+def _zone_color(speed):
+    for name, lo, hi, color in ZONE_DEFS:
+        if lo <= speed < hi:
+            return color
+    return ZONE_DEFS[-1][3]
+
+
+def _timeline_fig(SESS, bucket_size=1):
+    fig = go.Figure()
+    for sid in sorted(SESS.keys()):
+        g = SESS[sid].copy()
+        g["bucket"] = (g["elapsed_min"] / bucket_size).astype(int)
+        bucketed = g.groupby("bucket", as_index=False).agg(speed=("speed", "mean"))
+        bucketed["zone"] = bucketed["speed"].apply(_zone_name)
+        bucketed["color"] = bucketed["speed"].apply(_zone_color)
+        bucketed["duration"] = bucketed["bucket"].diff().fillna(1).clip(lower=1)
+        bucketed.loc[0, "duration"] = bucket_size
+        bucketed["duration"] = bucketed["duration"].fillna(bucket_size)
+        fig.add_trace(go.Bar(
+            y=[f"S{sid}"] * len(bucketed),
+            x=bucketed["duration"],
+            base=bucketed["bucket"] * bucket_size,
+            orientation="h",
+            marker_color=bucketed["color"].tolist(),
+            hovertemplate=(
+                "Minute %{base:.0f}–%{x:.0f}<br>Zone: %{customdata[0]}<br>" \
+                "Avg speed: %{customdata[1]:.2f} m/s<extra>S" + str(sid) + "</extra>"
+            ),
+            customdata=bucketed[["zone", "speed"]].values,
+            showlegend=False,
+        ))
+    fig.update_layout(**_layout(240),
+        xaxis=dict(title="Minute of session", showgrid=True, gridcolor="#f0f0f0"),
+        yaxis=dict(showgrid=False),
+        bargap=0.05,
+    )
+    return fig
 
 
 def _layout(height=300):
@@ -399,86 +446,64 @@ st.caption("💡 **Zoom tip:** Click and drag to zoom in. Double-click anywhere 
 st.markdown("## Intensity & Speed Zones")
 st.caption(f"Analyzing {len(SESS)} sessions · Speed zones and high-intensity time")
 
-# zone distribution — % of session time
 _section("Zone distribution — % of session time")
-fig = go.Figure()
-for sid in sorted(SESS.keys()):
-    zones = STATS[sid]["zones"]
-    label = f"S{sid}"
-    for z in zones:
-        fig.add_trace(go.Bar(
-            name=z["name"], y=[label], x=[z["pct"]],
-            orientation="h", marker_color=z["color"],
-            text=f"{z['pct']}%", textposition="inside",
-            insidetextanchor="middle",
-            textfont=dict(size=11, color="white"),
-            hovertemplate=f"<b>{z['name']}</b><br>{z['pct']}% · {z['minutes']} min<extra></extra>",
-            showlegend=bool(sid == min(SESS.keys())),
-        ))
-fig.update_layout(**_layout(160), barmode="stack",
-    xaxis=dict(range=[0,100], showticklabels=False, showgrid=False),
-    yaxis=dict(showgrid=False),
-    legend=dict(orientation="h", y=1.2, x=0, traceorder="normal"),
+session_ids = sorted(SESS.keys())
+cols = min(3, len(session_ids))
+rows = (len(session_ids) + cols - 1) // cols
+fig3 = make_subplots(
+    rows=rows, cols=cols,
+    specs=[[{'type': 'domain'}] * cols for _ in range(rows)],
+    subplot_titles=[f"S{sid}" for sid in session_ids],
 )
-st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-# zone time — absolute minutes
-_section("Zone time — absolute minutes")
-fig2 = go.Figure()
-for sid in sorted(SESS.keys()):
+for idx, sid in enumerate(session_ids):
+    row = idx // cols + 1
+    col = idx % cols + 1
     zones = STATS[sid]["zones"]
-    fig2.add_trace(go.Bar(
-        name=f"S{sid}",
-        x=[z["name"] for z in zones],
-        y=[z["minutes"] for z in zones],
-        marker_color=COLORS.get(sid, "#888"),
-        text=[f"{z['minutes']}m" for z in zones],
-        textposition="outside",
-        hovertemplate="%{x}: %{y} min<extra>S{sid}</extra>",
-    ))
-fig2.update_layout(**_layout(280), barmode="group",
-    yaxis=dict(title="Minutes", showgrid=True, gridcolor="#f0f0f0"),
-    xaxis=dict(showgrid=False, categoryorder="array", categoryarray=ZONE_NAMES),
-    legend=dict(orientation="h", y=1.1, x=0),
-)
-st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-
-# zone breakdown — donut view
-_section("Zone breakdown — donut view")
-ncols = int(len(SESS)) if len(SESS) else 1
-cols = st.columns(ncols)
-for col, sid in zip(cols, sorted(SESS.keys())):
-    zones = STATS[sid]["zones"]
-    fig3 = go.Figure(go.Pie(
+    fig3.add_trace(go.Pie(
         labels=[z["name"] for z in zones],
         values=[z["pct"] for z in zones],
-        hole=0.55,
         marker_colors=[z["color"] for z in zones],
+        hole=0.45,
         textinfo="label+percent",
-        hovertemplate="%{label}: %{value}%<extra></extra>",
+        hovertemplate="%{label}: %{value}%<br>%{customdata[0]:.1f} min<extra>S" + str(sid) + "</extra>",
+        customdata=[[z["minutes"]] for z in zones],
         sort=False,
-    ))
-    fig3.update_layout(**_layout(260),
-        annotations=[dict(text=f"S{sid}", x=0.5, y=0.5, font_size=11, showarrow=False)],
-        showlegend=False,
-    )
-    col.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
+        showlegend=(idx == 0),
+    ), row=row, col=col)
+fig3.update_layout(**_layout(300),
+    legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"),
+)
+st.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
+
+# speed zone timeline — session progression
+_section("Speed zone timeline — session progression")
+fig2 = _timeline_fig(SESS, bucket_size=1)
+st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
 
 # hi-intensity % by half
 _section("High-intensity % — first half vs second half")
+session_labels = [f"S{sid}" for sid in sorted(SESS.keys())]
+first_half = [STATS[sid]["hi_first"] for sid in sorted(SESS.keys())]
+second_half = [STATS[sid]["hi_last"] for sid in sorted(SESS.keys())]
 fig4 = go.Figure()
-for sid in sorted(SESS.keys()):
-    s = STATS[sid]
-    fig4.add_trace(go.Bar(
-        name=f"S{sid}",
-        x=["First half", "Second half"],
-        y=[s["hi_first"], s["hi_last"]],
-        marker_color=COLORS.get(sid, "#888"),
-        marker_opacity=[1.0, 0.6],
-        text=[f"{s['hi_first']}%", f"{s['hi_last']}%"],
-        textposition="outside",
-        hovertemplate="%{x}: %{y:.1f}%<extra>S{sid}</extra>",
-    ))
+fig4.add_trace(go.Bar(
+    name="First half",
+    x=session_labels,
+    y=first_half,
+    marker_color="#1D9E75",
+    text=[f"{v}%" for v in first_half],
+    textposition="outside",
+    hovertemplate="Session %{x}<br>First half: %{y:.1f}%<extra></extra>",
+))
+fig4.add_trace(go.Bar(
+    name="Second half",
+    x=session_labels,
+    y=second_half,
+    marker_color="rgba(29, 158, 117, 0.35)",
+    text=[f"{v}%" for v in second_half],
+    textposition="outside",
+    hovertemplate="Session %{x}<br>Second half: %{y:.1f}%<extra></extra>",
+))
 fig4.update_layout(**_layout(260), barmode="group",
     yaxis=dict(title="% time at >3 m/s", showgrid=True, gridcolor="#f0f0f0"),
     xaxis=dict(showgrid=False),
@@ -486,12 +511,3 @@ fig4.update_layout(**_layout(260), barmode="group",
 )
 st.plotly_chart(fig4, use_container_width=True, config={"displayModeBar": False})
 
-# summary insight
-st.divider()
-_section("Summary")
-insights = []
-for sid in sorted(SESS.keys()):
-    s = STATS[sid]
-    insights.append(f"**S{sid}**: {s['hi_pct']}% high-intensity time (running + sprinting)")
-
-_insight(" · ".join(insights))
