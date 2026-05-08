@@ -435,7 +435,7 @@ fig_radar.update_layout(
     font=dict(family="sans-serif", size=12),
     legend=dict(orientation="h", y=-0.08, x=0.2),
 )
-st.plotly_chart(fig_radar, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig_radar, width="stretch", config={"displayModeBar": False})
 
 st.caption("💡 **Zoom tip:** Click and drag to zoom in. Double-click anywhere on the chart to reset zoom.", help="Plotly charts support interactive zooming. Double-click to reset to full view.")
 
@@ -473,12 +473,12 @@ for idx, sid in enumerate(session_ids):
 fig3.update_layout(**_layout(300),
     legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"),
 )
-st.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig3, width="stretch", config={"displayModeBar": False})
 
 # speed zone timeline — session progression
 _section("Speed zone timeline — session progression")
 fig2 = _timeline_fig(SESS, bucket_size=1)
-st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig2, width="stretch", config={"displayModeBar": False})
 
 # hi-intensity % by half
 _section("High-intensity % — first half vs second half")
@@ -509,5 +509,4 @@ fig4.update_layout(**_layout(260), barmode="group",
     xaxis=dict(showgrid=False),
     legend=dict(orientation="h", y=1.1, x=0),
 )
-st.plotly_chart(fig4, use_container_width=True, config={"displayModeBar": False})
-
+st.plotly_chart(fig4, width="stretch", config={"displayModeBar": False})

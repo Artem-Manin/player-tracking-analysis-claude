@@ -1,3 +1,5 @@
+python -m streamlit run overview_v2.py
+
 # ⚽ Football Player Tracker
 
 A Python analytics platform for football (soccer) player tracking data from GPS + IMU wearable sensor devices. Includes a Streamlit dashboard, reusable analytics modules, and a Jupyter notebook for exploratory analysis.
