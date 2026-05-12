@@ -22,7 +22,7 @@ FAR_RIGHT  = [48.255783, 16.361191]
 NEAR_LEFT  = [48.255281, 16.360473]
 NEAR_RIGHT = [48.255346, 16.361270]
 CORNERS    = [FAR_LEFT, FAR_RIGHT, NEAR_RIGHT, NEAR_LEFT]
-CENTER     = [48.255533, 16.360831]
+CENTER     = [sum(c[0] for c in CORNERS) / 4, sum(c[1] for c in CORNERS) / 4]
 
 lat0 = sum(c[0] for c in CORNERS) / 4
 lon0 = sum(c[1] for c in CORNERS) / 4

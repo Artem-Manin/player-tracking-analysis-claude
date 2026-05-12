@@ -5,3 +5,4 @@ plotly>=5.20.0
 scikit-learn>=1.4.0
 scipy>=1.12.0
 pytz>=2024.1
+folium==0.19.7
